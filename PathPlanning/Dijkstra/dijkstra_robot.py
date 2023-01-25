@@ -1,3 +1,13 @@
+"""
+Dijkstra Search / Uniform Cost Search
+
+Uninformed Search
+Time Complexity: O(b^(1+C/e))   # C: costs, e: minimum cost on every arc
+Space Complexity: O(b^(1+C/e))
+Completeness: Yes
+Optimality: Yes
+"""
+
 import matplotlib.pyplot as plt
 import math
 

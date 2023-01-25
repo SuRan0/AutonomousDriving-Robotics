@@ -1,22 +1,21 @@
 """
-Depth-First Search
+Gready (Best First) Search
 
-Uninformed Search
-LIFO, stack
-Time Complexity: O(b^h)
-Space Complexity: O(b*h)
-Completeness: Yes
-Optimality: No
+Informed Search
+locally optimal choice
 """
+
 import math
 import matplotlib.pyplot as plt
 
 show_animation = True
 
-class DepthFirstSearch:
+class GreedyBestFirstSearchPlannar:
+    
     def __init__(self, ox, oy, resolution, robot_radius) -> None:
         """
         Initialization
+
         ox: x position list of Obstacles [m]
         oy: y position list of Obstacles [m]
         resolution: grid resolution [m]
@@ -27,36 +26,46 @@ class DepthFirstSearch:
         self.robot_radius = robot_radius
         self.calc_obstacle_map(ox, oy)
         self.motion = self.get_motion_model()
-
+    
     class Node:
         def __init__(self, x, y, cost, parent_index, parent) -> None:
-            self.x = x  # index of grid, not real position
+            self.x = x
             self.y = y
             self.cost = cost
             self.parent_index = parent_index
             self.parent = parent
-
+        
         def __str__(self) -> str:
             return str(self.x) + "," + str(self.y) + "," + str(self.cost) + "," + str(self.parent_index)
 
     def calc_final_path(self, goal_node, closed_set):
-        # generte final course
+        # generat final course
         rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [self.calc_grid_position(goal_node.y, self.min_y)]
         n = closed_set[goal_node.parent_index]
+
         while n is not None:
             rx.append(self.calc_grid_position(n.x, self.min_x))
             ry.append(self.calc_grid_position(n.y, self.min_y))
             n = n.parent
+        
         return rx, ry
     
     def calc_grid_index(self, node):
         return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
     
     def calc_grid_position(self, index, min_pos):
+        """
+        calculate grid real position
+        """
         return index * self.resolution + min_pos
+
+    @staticmethod
+    def calc_heuristic(node1, node2):
+        w = 1.0     # weight of heuristic
+        d = w * math.hypot(node1.x - node2.x, node1.y - node2.y)
+        return d
     
     def calc_obstacle_map(self, ox, oy):
-
         self.min_x = round(min(ox))
         self.min_y = round(min(oy))
         self.max_x = round(max(ox))
@@ -78,18 +87,18 @@ class DepthFirstSearch:
             for iy in range(self.y_width):
                 y = self.calc_grid_position(iy, self.min_y)
                 for iox, ioy in zip(ox, oy):
-                    d = math.hypot(iox - x, ioy - y)    # Euclidean distance
+                    d = math.hypot(iox - x, ioy - y)
                     if d <= self.robot_radius:
                         self.obstacle_map[ix][iy] = True
                         break
-
+    
     def calc_xy_index(self, position, min_pos):
-        return round((position - min_pos) / self.resolution) 
+        return round((position -  min_pos) / self.resolution)
 
     @staticmethod
     def get_motion_model():
         # dx, dy, cost
-        motion = [[1, 0, 1],
+        motion = [[1, 0 ,1],
                   [0, 1, 1],
                   [-1, 0, 1],
                   [0, -1, 1],
@@ -97,11 +106,12 @@ class DepthFirstSearch:
                   [-1, 1, math.sqrt(2)],
                   [1, -1, math.sqrt(2)],
                   [1, 1, math.sqrt(2)]]
+        
         return motion
 
     def planning(self, sx, sy, gx, gy):
         """
-        depth-first search
+        Greedy Best-First Search based planning
 
         input:
             s_x: start x position [m]
@@ -114,54 +124,67 @@ class DepthFirstSearch:
             ry: y position list of the final path
         """
 
-        start_node = self.Node(self.calc_xy_index(sx, self.min_x), self.calc_xy_index(sy, self.min_y), 0.0, -1, None)
-        goal_node = self.Node(self.calc_xy_index(gx, self.min_x), self.calc_xy_index(gy, self.min_y), 0.0, -1, None)
-
+        start_node = self.Node(self.calc_xy_index(sx, self.min_x),
+                               self.calc_xy_index(sy, self.min_y), 0.0, -1, None)
+        goal_node = self.Node(self.calc_xy_index(gx, self.min_x),
+                              self.calc_xy_index(gy, self.min_y), 0.0, -1, None)
+        
         open_set, closed_set = dict(), dict()
         open_set[self.calc_grid_index(start_node)] = start_node
+
         while True:
             if len(open_set) == 0:
                 print("Open set is empty ...")
                 break
 
-            current = open_set.pop(list(open_set.keys())[-1])
-            c_id = self.calc_grid_index(current)
+            c_id = min(open_set, key=lambda o: self.calc_heuristic(goal_node, open_set[o]))
+            current = open_set[c_id]
 
             # show graph
             if show_animation:
-                plt.plot(self.calc_grid_position(current.x, self.min_x), 
-                         self.calc_grid_position(current.y, self.min_y), "xc")  # cross, green
+                plt.plot(self.calc_grid_position(current.x, self.min_x),
+                         self.calc_grid_position(current.y, self.min_y), "xc")
                 # for stopping simulation with the esc key
-                plt.gcf().canvas.mpl_connect('key_release_event',
-                                            lambda event: [exit(0) if event.key == "escape" else None])
+                plt.gcf().canvas.mpl_connect('key_release_event', lambda event: [exit(0) if event.key == 'escape' else None])
                 
                 plt.pause(0.01)
             
+            # remove the item from the open set
+            del open_set[c_id]
+
+            # add it to the closed set
+            closed_set[c_id] = current
+
             if current.x == goal_node.x and current.y == goal_node.y:
-                print("Reach Goal!")
+                print("Reach Final Goal!")
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
-                print("current goal: ", current.cost)
                 break
 
-            # expand_grid search on motion model
+            # expand_grid search, grid_based on motion model
             for i, _ in enumerate(self.motion):
                 node = self.Node(current.x + self.motion[i][0],
-                                current.y + self.motion[i][1],
-                                current.cost + self.motion[i][2], c_id, None)
+                                 current.y + self.motion[i][1],
+                                 current.cost + self.motion[i][2], 
+                                 c_id, current)
+
                 n_id = self.calc_grid_index(node)
 
-                # if node is not safe, do something, skip the current iteration
+                # if the node is not safe, do something, and skip the iteration
                 if not self.verify_node(node):
                     continue
+                
+                if n_id in closed_set:
+                    continue
 
-                if n_id not in closed_set:
+                if n_id not in open_set:
                     open_set[n_id] = node
-                    closed_set[n_id] = node
-                    node.parent = current
+                else:
+                    if open_set[n_id].cost > node.cost:
+                        open_set[n_id] = node
+        # closed_set[goal_node.parent_index] = current
         rx, ry = self.calc_final_path(goal_node, closed_set)
         return rx, ry
-
 
     def verify_node(self, node):
         px = self.calc_grid_position(node.x, self.min_x)
@@ -175,8 +198,8 @@ class DepthFirstSearch:
             return False
         elif py >= self.max_y:
             return False
-        
-        # collision check
+
+        # collisition check
         if self.obstacle_map[node.x][node.y]:
             return False
         
@@ -221,8 +244,8 @@ def main():
         plt.grid(True)
         plt.axis("equal")
 
-    dfs = DepthFirstSearch(ox, oy, grid_size, robot_radius)
-    rx, ry = dfs.planning(sx, sy, gx, gy)
+    greedybestfirst = GreedyBestFirstSearchPlannar(ox, oy, grid_size, robot_radius)
+    rx, ry = greedybestfirst.planning(sx, sy, gx, gy)
 
     if show_animation:
         plt.plot(rx, ry, "-r")  # line red
