@@ -1,28 +1,22 @@
-import matplotlib.pyplot as plt
-import math
+"""
+Depth-First Search
+LIFO
 
-# show graph
+"""
+import math
+import matplotlib.pyplot as plt
+
 show_animation = True
 
-
-class Dijkstra:
-
-    def __init__(self, ox, oy, resolution, robot_radius):
+class DepthFirstSearch:
+    def __init__(self, ox, oy, resolution, robot_radius) -> None:
         """
-        initialize map for a star planning
-
+        Initialization
         ox: x position list of Obstacles [m]
         oy: y position list of Obstacles [m]
         resolution: grid resolution [m]
         robot_radius: [m]
         """
-        self.min_x = None
-        self.min_y = None
-        self.max_x = None
-        self.max_y = None
-        self.x_width = None
-        self.y_width = None
-        self.obstacle_map = None
 
         self.resolution = resolution
         self.robot_radius = robot_radius
@@ -30,41 +24,34 @@ class Dijkstra:
         self.motion = self.get_motion_model()
 
     class Node:
-        def __init__(self, x, y, cost, parent_index) -> None:
-            # index of grid
-            self.x = x
+        def __init__(self, x, y, cost, parent_index, parent) -> None:
+            self.x = x  # index of grid, not real position
             self.y = y
             self.cost = cost
             self.parent_index = parent_index
+            self.parent = parent
 
         def __str__(self) -> str:
-            """
-            while print(Node) -> call __str__()
-            """
             return str(self.x) + "," + str(self.y) + "," + str(self.cost) + "," + str(self.parent_index)
 
-    
     def calc_final_path(self, goal_node, closed_set):
-        # generate final course
+        # generte final course
         rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [self.calc_grid_position(goal_node.y, self.min_y)]
-        parent_index = goal_node.parent_index
-        while parent_index != -1:
-            n = closed_set[parent_index]
+        n = closed_set[goal_node.parent_index]
+        while n is not None:
             rx.append(self.calc_grid_position(n.x, self.min_x))
             ry.append(self.calc_grid_position(n.y, self.min_y))
-            parent_index = n.parent_index
-
+            n = n.parent
         return rx, ry
-
+    
     def calc_grid_index(self, node):
-        # if node.y=2, node.x=1, min=0, x_width=5, return (2-0)*5+1=11, 11th node
         return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
-
+    
     def calc_grid_position(self, index, min_pos):
-        pos = index * self.resolution + min_pos
-        return pos
-
+        return index * self.resolution + min_pos
+    
     def calc_obstacle_map(self, ox, oy):
+
         self.min_x = round(min(ox))
         self.min_y = round(min(oy))
         self.max_x = round(max(ox))
@@ -80,7 +67,7 @@ class Dijkstra:
         print("y_width:", self.y_width)
 
         # obstacle map generation
-        self.obstacle_map = [[False for _ in range(self.y_width)] for _ in range(self.x_width)]     # 2D arrays
+        self.obstable_map = [[False for _ in range(self.y_width)] for _ in range(self.x_width)]
         for ix in range(self.x_width):
             x = self.calc_grid_position(ix, self.min_x)
             for iy in range(self.y_width):
@@ -88,102 +75,11 @@ class Dijkstra:
                 for iox, ioy in zip(ox, oy):
                     d = math.hypot(iox - x, ioy - y)    # Euclidean distance
                     if d <= self.robot_radius:
-                        self.obstacle_map[ix][iy] = True
+                        self.obstable_map[ix][iy] = True
                         break
 
     def calc_xy_index(self, position, min_pos):
-        return round((position - min_pos) / self.resolution)
-
-    def planning(self, sx, sy, gx, gy):
-        """
-        dijkstra path search
-
-        input:
-            s_x: start x position [m]
-            s_y: start y position [m]
-            gx: goal x position [m]
-            gy: goal y position [m]
-
-        output:
-            rx: x position list of the final path
-            ry: y position list of the final path
-        """
-
-        start_node = self.Node(self.calc_xy_index(sx, self.min_x), self.calc_xy_index(sy, self.min_y), 0.0, -1)
-        goal_node = self.Node(self.calc_xy_index(gx, self.min_x), self.calc_xy_index(gy, self.min_y), 0.0, -1)
-
-        open_set, closed_set = dict(), dict()
-        open_set[self.calc_grid_index(start_node)] = start_node
-
-        while True:
-            c_id = min(open_set, key=lambda o: open_set[o].cost)
-            current = open_set[c_id]
-
-            # show graph
-            if show_animation: # pragma: no cover
-                plt.plot(self.calc_grid_position(current.x, self.min_x), 
-                        self.calc_grid_position(current.y, self.min_y), "xc")    # "xc": red, circle points
-                # for stopping simulation with the esc key
-                plt.gcf().canvas.mpl_connect(   # gcf(): get current figure, canvas: get canvas
-                    'key_release_event',        # mpl_connect: connect an event handler
-                    lambda event: [exit(0) if event.key == 'escape' else None]
-                )
-                if len(closed_set.keys()) % 10 == 0:
-                    plt.pause(0.001)
-
-            if current.x == goal_node.x and current.y == goal_node.y:
-                print("Final goal")
-                goal_node.parent_index = current.parent_index
-                goal_node.cost = current.cost
-                break
-
-            # remove the item from open set
-            del open_set[c_id]
-
-            # add it to the closed set
-            closed_set[c_id] = current
-
-            # expand search grid based on motion model
-            for move_x, move_y, move_cost in self.motion:
-                node = self.Node(current.x + move_x,
-                                 current.y + move_y,
-                                 current.cost + move_cost, c_id)
-                n_id = self.calc_grid_index(node)
-
-                if n_id in closed_set:
-                    continue        # skip the current iteration
-                
-                if not self.verify_node(node):
-                    continue
-
-                if n_id not in open_set:
-                    open_set[n_id] = node   # discover a new node
-                else:
-                    if open_set[n_id].cost >= node.cost:
-                        # this path is the best untill now. record it!
-                        open_set[n_id] = node
-        
-        rx, ry = self.calc_final_path(goal_node, closed_set)
-
-        return rx, ry
-
-    def verify_node(self, node):
-        px = self.calc_grid_position(node.x, self.min_x)
-        py = self.calc_grid_position(node.y, self.min_y)
-
-        if px < self.min_x:
-            return False
-        if py < self.min_y:
-            return False
-        if px >= self.max_x:
-            return False
-        if py >= self.max_y:
-            return False
-        
-        if self.obstacle_map[node.x][node.y]:
-            return False
-        
-        return True
+        return round((position - min_pos) / self.resolution) 
 
     @staticmethod
     def get_motion_model():
@@ -198,18 +94,100 @@ class Dijkstra:
                   [1, 1, math.sqrt(2)]]
         return motion
 
-def main():
-    print(__file__ + " start!!")
+    def planning(self, sx, sy, gx, gy):
+        """
+        depth-first search
+
+        input:
+            s_x: start x position [m]
+            s_y: start y position [m]
+            gx: goal x position [m]
+            gy: goal y position [m]
+
+        output:
+            rx: x position list of the final path
+            ry: y position list of the final path
+        """
+
+        start_node = self.Node(self.calc_xy_index(sx, self.min_x), self.calc_xy_index(sy, self.min_y), 0.0, -1, None)
+        goal_node = self.Node(self.calc_xy_index(gx, self.min_x), self.calc_xy_index(gy, self.min_y), 0.0, -1, None)
+
+        open_set, closed_set = dict(), dict()
+        open_set[self.calc_grid_index(start_node)] = start_node
+        while True:
+            if len(open_set) == 0:
+                print("Open set is empty ...")
+                break
+
+            current = open_set.pop(list(open_set.keys())[-1])
+            c_id = self.calc_grid_index(current)
+
+            # show graph
+            if show_animation:
+                plt.plot(self.calc_grid_position(current.x, self.min_x), 
+                         self.calc_grid_position(current.y, self.min_y), "xc")  # cross, green
+                # for stopping simulation with the esc key
+                plt.gcf().canvas.mpl_connect('key_release_event',
+                                            lambda event: [exit(0) if event.key == "escape" else None])
+                
+                plt.pause(0.01)
+            
+            if current.x == goal_node.x and current.y == goal_node.y:
+                print("Reach Goal!")
+                goal_node.parent_index = current.parent_index
+                goal_node.cost = current.cost
+                break
+
+            # expand_grid search on motion model
+            for i, _ in enumerate(self.motion):
+                node = self.Node(current.x + self.motion[i][0],
+                                current.y + self.motion[i][1],
+                                current.cost + self.motion[i][2], c_id, None)
+                n_id = self.calc_grid_index(node)
+
+                # if node is not safe, do something, skip the current iteration
+                if not self.verify_node(node):
+                    continue
+
+                if n_id not in closed_set:
+                    open_set[n_id] = node
+                    closed_set[n_id] = node
+                    node.parent = current
+        rx, ry = self.calc_final_path(goal_node, closed_set)
+        return rx, ry
+
+
+    def verify_node(self, node):
+        px = self.calc_grid_position(node.x, self.min_x)
+        py = self.calc_grid_position(node.y, self.min_y)
+
+        if px < self.min_x:
+            return False
+        elif py < self.min_y:
+            return False
+        elif px >= self.max_x:
+            return False
+        elif py >= self.max_y:
+            return False
         
+        # collision check
+        if self.obstable_map[node.x][node.y]:
+            return False
+        
+        return True
+
+def main():
+    print(__file__ + " Start!!")
+
     # start and goal position
-    sx = -5.0   # [m]
-    sy = -5.0   # [m]
+    sx = 10.0   # [m]
+    sy = 10.0   # [m]
     gx = 50.0   # [m]
     gy = 50.0   # [m]
-    grid_size = 2.0     # [m]
+    grid_size = 2.0 # [m]
     robot_radius = 1.0  # [m]
 
-    # set obstacle positions
+    # set obstable positions
     ox, oy = [], []
     for i in range(-10, 60):
         ox.append(i)
@@ -229,15 +207,21 @@ def main():
     for i in range(0, 40):
         ox.append(40.0)
         oy.append(60.0 - i)
+    
+    if show_animation:
+        plt.plot(ox, oy, ".k")  # dot, black
+        plt.plot(sx, sy, "og")  # big dot, green
+        plt.plot(gx, gy, "xb")  # cross, blue
+        plt.grid(True)
+        plt.axis("equal")
 
-    dijkstra = Dijkstra(ox, oy, grid_size, robot_radius)
-    rx, ry = dijkstra.planning(sx, sy, gx, gy)
+    dfs = DepthFirstSearch(ox, oy, grid_size, robot_radius)
+    rx, ry = dfs.planning(sx, sy, gx, gy)
 
     if show_animation:
-        plt.plot(rx, ry, "-r")
+        plt.plot(rx, ry, "-r")  # line red
         plt.pause(0.01)
         plt.show()
-
 
 if __name__ == '__main__':
     main()
